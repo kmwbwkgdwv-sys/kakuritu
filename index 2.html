@@ -1,0 +1,138 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>2分の1チャレンジ</title>
+<style>
+:root{--bg:#f6f7fb;--card:#fff;--tx:#1b1f2a;--sub:#6b7280;--bd:#e3e6ee;--blue:#2f6fed;--green:#1fa463;--red:#e5484d;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#12141a;--card:#1c1f28;--tx:#eef0f5;--sub:#9aa1b2;--bd:#2c303c}}
+:root[data-theme="dark"]{--bg:#12141a;--card:#1c1f28;--tx:#eef0f5;--sub:#9aa1b2;--bd:#2c303c}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font-family:system-ui,-apple-system,"Hiragino Sans","Noto Sans JP",sans-serif;display:flex;justify-content:center}
+main{width:100%;max-width:480px;padding:20px 16px 40px}
+h1{font-size:20px;text-align:center;margin:4px 0 16px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:16px;padding:20px;margin-bottom:16px;text-align:center}
+.lbl{color:var(--sub);font-size:13px}
+.odds{font-size:56px;font-weight:800;margin:6px 0;word-break:break-all}
+.row{display:flex;gap:12px;margin-top:12px}
+.row button{flex:1;height:96px;border:0;border-radius:16px;color:#fff;font-size:22px;font-weight:700}
+.b{background:var(--blue)}.g{background:var(--green)}
+button:disabled{opacity:.4}
+.msg{min-height:24px;margin-top:12px;font-weight:700}
+.ok{color:var(--green)}.ng{color:var(--red)}
+input{width:100%;padding:12px;border-radius:10px;border:1px solid var(--bd);background:var(--bg);color:var(--tx);font-size:16px;margin:10px 0}
+.btn{width:100%;padding:13px;border:0;border-radius:10px;background:var(--tx);color:var(--bg);font-size:16px;font-weight:700}
+.sec{background:transparent;color:var(--tx);border:1px solid var(--bd);margin-top:8px}
+ol{list-style:none;padding:0;margin:8px 0 0;text-align:left}
+li{display:flex;justify-content:space-between;padding:9px 4px;border-bottom:1px solid var(--bd)}
+li:last-child{border:0}
+.hide{display:none}
+</style>
+</head>
+<body>
+<main>
+<h1>🎯 2分の1チャレンジ</h1>
+
+<div class="card" id="play">
+  <div class="lbl">この問題に正解する確率</div>
+  <div class="odds" id="odds">1/2</div>
+  <div class="lbl">連続正解 <b id="streak">0</b> 回</div>
+  <div class="row">
+    <button class="b" id="bb">青</button>
+    <button class="g" id="gg">緑</button>
+  </div>
+  <div class="msg" id="msg">青か緑を選んでください</div>
+</div>
+
+<div class="card hide" id="over">
+  <div class="lbl">ゲームオーバー</div>
+  <div class="odds" id="final">0</div>
+  <div class="lbl">連続正解で終了</div>
+  <input id="nick" maxlength="12" placeholder="ニックネーム">
+  <button class="btn" id="reg">ランキングに登録</button>
+  <button class="btn sec" id="retry">登録せずもう一度</button>
+</div>
+
+<div class="card">
+  <b>🌏 世界ランキング</b> <button id="refresh" style="border:0;background:none;color:var(--sub);font-size:13px">更新</button>
+  <ol id="rank"><li><span>読み込み中…</span></li></ol>
+</div>
+</main>
+
+<script>
+// ===== 設定: SupabaseのURLとanonキーを入れてください(README参照) =====
+const SUPABASE_URL = "";      // 例: https://xxxx.supabase.co
+const SUPABASE_ANON_KEY = ""; // 例: eyJhbGciOi...
+// ===================================================================
+(function(){
+  let streak=0, locked=false, over=false;
+  const $=id=>document.getElementById(id);
+  const online=!!(SUPABASE_URL&&SUPABASE_ANON_KEY);
+  const H={apikey:SUPABASE_ANON_KEY,Authorization:'Bearer '+SUPABASE_ANON_KEY,'Content-Type':'application/json'};
+  const esc=s=>String(s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  function oddsText(n){
+    if(n<=60) return '1/'+(1n<<BigInt(n+1)).toString().replace(/\B(?=(\d{3})+(?!\d))/g,',');
+    return '1/2^'+(n+1);
+  }
+  function render(){$('odds').textContent=oddsText(streak);$('streak').textContent=streak}
+  function pick(choice){
+    if(locked||over) return;
+    locked=true;
+    const answer=Math.random()<0.5?'青':'緑', m=$('msg');
+    if(choice===answer){
+      streak++;m.className='msg ok';m.textContent='⭕ 正解！ 答えは'+answer;render();
+      setTimeout(()=>{locked=false;m.className='msg';m.textContent='次の問題を選んでください'},700);
+    }else{
+      m.className='msg ng';m.textContent='❌ 残念！ 答えは'+answer;over=true;
+      setTimeout(()=>{$('play').classList.add('hide');$('over').classList.remove('hide');$('final').textContent=streak},900);
+    }
+  }
+  function reset(){
+    streak=0;locked=false;over=false;
+    $('msg').className='msg';$('msg').textContent='青か緑を選んでください';
+    render();$('over').classList.add('hide');$('play').classList.remove('hide');$('reg').disabled=false;
+  }
+  $('bb').onclick=()=>pick('青');
+  $('gg').onclick=()=>pick('緑');
+  $('retry').onclick=reset;
+
+  function showRank(list){
+    const el=$('rank');
+    if(!list.length){el.innerHTML='<li><span>まだ記録がありません</span></li>';return}
+    el.innerHTML=list.map((r,i)=>'<li><span>'+(i+1)+'. '+esc(r.name)+'</span><b>'+r.score+'連続</b></li>').join('');
+  }
+  function localList(){try{return JSON.parse(localStorage.getItem('half_rank')||'[]')}catch(e){return []}}
+  async function loadRank(){
+    if(!online){showRank(localList());return}
+    try{
+      const r=await fetch(SUPABASE_URL+'/rest/v1/ranking?select=name,score&order=score.desc,created_at.asc&limit=20',{headers:H});
+      if(!r.ok) throw new Error(r.status);
+      showRank(await r.json());
+    }catch(e){$('rank').innerHTML='<li><span>ランキングを取得できませんでした</span></li>'}
+  }
+  $('refresh').onclick=loadRank;
+
+  $('reg').onclick=async()=>{
+    const name=($('nick').value||'').trim().slice(0,12)||'名無し';
+    $('reg').disabled=true;
+    if(online){
+      try{
+        const r=await fetch(SUPABASE_URL+'/rest/v1/ranking',{method:'POST',headers:{...H,Prefer:'return=minimal'},body:JSON.stringify({name:name,score:streak})});
+        if(!r.ok) throw new Error(r.status);
+      }catch(e){alert('登録に失敗しました');$('reg').disabled=false;return}
+    }else{
+      try{
+        const l=localList();l.push({name:name,score:streak});
+        l.sort((a,b)=>b.score-a.score);
+        localStorage.setItem('half_rank',JSON.stringify(l.slice(0,20)));
+      }catch(e){}
+    }
+    await loadRank();reset();
+  };
+  render();loadRank();
+})();
+</script>
+</body>
+</html>
